@@ -488,7 +488,7 @@ from scipy.stats import rankdata
 import pandas as pd
 import numpy as np
 from scipy.stats import rankdata
-
+from sklearn.ensemble import RandomForestRegressor
 def RegENN03Wei3(data, response, k=9, alfa=5):
     
     # find position of response variable
