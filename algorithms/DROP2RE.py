@@ -38,7 +38,7 @@ def DROP2RE(x, y, k):
     forbidden_idxs = []
 
 
-    with tqdm(total=len(x), file=sys.stdout) as pbar:
+    with tqdm(total=len(x), file=sys.stdout, desc="Running DROP2RE") as pbar:
         # For each instance
         for i in range(len(x)):
             # Get the knn
@@ -55,12 +55,12 @@ def DROP2RE(x, y, k):
             instanceless_model = train_regresor(knn[0][1:], knn[1][1:], test_partition=False)
 
             # Get the total error
-            for i in range(1, len(knn[0])):
+            for j in range(1, len(knn[0])):
                 # Get the neighbor
-                neighbor = knn[0][i].reshape(1, -1)
+                neighbor = knn[0][j].reshape(1, -1)
                 # Accumulate error
-                eWith += np.abs(instance_model.predict(neighbor) - knn[1][i])
-                eWithout += np.abs(instanceless_model.predict(neighbor) - knn[1][i])
+                eWith += np.abs(instance_model.predict(neighbor) - knn[1][j])
+                eWithout += np.abs(instanceless_model.predict(neighbor) - knn[1][j])
 
             # Check if the error with the instance is worse
             if(eWith > eWithout):
@@ -75,7 +75,6 @@ def DROP2RE(x, y, k):
     # Sumary
     print('Deleted a total of ', len(forbidden_idxs), ' samples.')
 
-    # TODO HACER QUE EL forbidden_idxs SEA UNA LISTA DE 1 Y 0 EN EL QUE 1 ES UNA INSTANCIA RIUIDOSA
-
-    # Return the clean (x,y)
-    return (np.delete(x, forbidden_idxs, axis=0), np.delete(y, forbidden_idxs, axis=0 ))
+    # Return a binary list with a 1 on the noisy samples idx
+    return np.sum(np.equal(np.arange(len(x)), np.array(forbidden_idxs)[:,np.newaxis]), 0)
+    #return (np.delete(x, forbidden_idxs, axis=0), np.delete(y, forbidden_idxs, axis=0 ))
