@@ -22,14 +22,13 @@ def min_max_norm(x):
     Function to separate the response from the data and normalize each column of the dataset 
 
     df:             pd.DatasFrame with the dataset
-    target_idx:   Index of the response (TODO: WHAT IS THE RESPONSE?)
+    target_idx:     Index of the response 
 
 """
 def preprocessing(df, target_idx): 
     
     # Sort the df
     df = df.sample(frac=1)  
-    # TODO PREGUNTAR POR QUÉ HACE ESTO ¿CON RESPECTO A QUÉ SE ORDENA?
     
     # Exclude the target from train_data
     data = df.loc[:, df.columns != target_idx]

@@ -3,6 +3,8 @@ import sys, time
 import numpy as np
 import pandas as pd
 
+from tqdm import tqdm
+from .istarmap import *
 from multiprocessing import Pool
 
 from .entities import Dataset
@@ -43,60 +45,62 @@ from sklearn.metrics import mean_squared_error
 """
 def add_noise(target, perc, method, mag=0.3, rs=30):    
     
-    # Set the random seed for reproduceability
-    np.random.seed(rs)
-    # Create array with consecutive, random vector and target vector
-    arr = np.stack((np.r_[1:target.shape[0] + 1], np.random.rand(target.shape[0]), target), axis=-1)
 
-    # Sort array according to random vector 
-    arr = arr[np.argsort(arr[:, 1])]
+    # First validate if wee need to add noise
+    if(perc > 0): 
 
-    #### Generate noise vector
+        # Set the random seed for reproduceability
+        np.random.seed(rs)
 
-    # number of values
-    c1 = int(target.shape[0] * perc)
+        # Number of noisy instances
+        num_noisy_inst = int(target.shape[0] * perc)
+        # Target length
+        target_len = len(target)
 
-    # to make the ramdom noise positive or negative
-    mul1 = np.random.randint(2, size=c1)
-    mul1[mul1 == 0] = -1
+        # Generate vector to encode noise addition
+        noisy_instances = np.random.randint(2, size=num_noisy_inst)
+        # If 1 the noise is added to the value, if 0 the noise is substracted
+        noisy_instances[noisy_instances == 0] = -1
+        # Add zeros encoding clean instances
+        noisy_instances = np.hstack((np.zeros(target_len - num_noisy_inst), noisy_instances))
+        # Shuffle noisy instances
+        np.random.shuffle(noisy_instances)
     
-    if (method == 'normal'):
-        # to make the ramdom noise positive or negative
-        noise1 = np.random.normal(np.mean(target), np.std(target), c1) * mul1
+        if (method == 'normal'):
+            # to make the ramdom noise positive or negative
+            #noise = np.random.normal(np.mean(target), np.std(target), num_noisy_inst) * noisy_instances
+            sys.exit("Support for normal noise addition is not available")
 
-    elif (method == 'uniform'):
-        noise1=np.random.uniform(np.min(target),np.max(target),c1) * mul1
+        elif (method == 'uniform'):
+            #noise = np.random.uniform(np.min(target), np.max(target), num_noisy_inst) * noisy_instances
+            sys.exit("Support for uniform noise addition is not available")
 
-    elif (method == 'persize'):
-        if perc > 0:
-            noise1 = arr[:, 2][-c1:target.shape[0]] * mag * mul1
-        else:
-            noise1 = np.zeros(target.shape[0])
-            
-    
-    if (perc>0):    
-        # Stack noise vectors
-        noise = np.hstack((np.zeros(target.shape[0] - (c1)), noise1))
+        # For noise thats relative to the original value
+        elif (method == 'persize'):
+            # Calc the noise to be added as a msg of the original value 
+            noise = target * mag * noisy_instances
+       
+        # Add noise to the target
+        noisy_target = target + noise
+        
+        # Encode the noisy instance, if 0 the the intance is clean 
+        # else, it isnt
+        noisy_instances[noisy_instances != 0] = 1
+
+        # arr[0] = Numers from 0 to len(target)
+        # arr[1] = Shuffle vector
+        # arr[2] = Target
+        # arr[3] = Noise vector
+        # arr[4] = Noisy target
+
+        return ([noisy_target, noisy_instances])
+
+
+    # If perc is zero then no noise is needed
     else:
-        noise = noise1
-    
-    # stack noise vector in matrix
-    arr = np.column_stack((arr, noise))
-    
-    # Add noise to the target
-    agg = arr[:, 2] + arr[:, 3]
-    arr = np.column_stack((arr, agg))
-    
-    # Sort array according to consecutive
-    arr = arr[np.argsort(arr[:, 0])]
-    
-    # Recoding noise in two groups, 1= noise instance, 0= not noise
-    noiseAbs = np.abs(arr[:, 3])
-    noiseAbs[noiseAbs == 0] = 0
-    noiseAbs[noiseAbs > 0] = 1
-    noiseAbs[noiseAbs < 0] = 1
-    
-    return([arr[:,4], noiseAbs])
+        # No noise means noisy intances vector is zero and 
+        # the noisy target is the target 
+        return ([target, np.zeros(target.shape[0])])
 
 
 """
@@ -115,7 +119,7 @@ def add_noise(target, perc, method, mag=0.3, rs=30):
     return:
     A vector with RMSE and MAPE of target prediction, and F-SCORE, PRECISION AND RECALL OF noisy detection, and percentage of cases deleted
 """
-def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='uniform', filtr=1, split=10,  rs=30): 
+def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='persize', filtr=1, split=10,  rs=30): 
 
     # KFold Cross Validation approach
     kf = KFold(n_splits=split, shuffle=True, random_state=rs)
@@ -140,7 +144,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
         
         
         
-        if filtr==1:
+        if(filtr == 1):
             # Apply instance selection algorithm
             idNoisePred = is_algorithm.evaluate(X_train,Y_train)
     
@@ -211,7 +215,7 @@ def experiment_on_data(algorithms, data_path, noise_params):
     dataset = Dataset(name_data, dataset[0], dataset[1])
 
     # Get time stamps
-    start_time = time.time()
+    #start_time = time.time()
 
     # Matrix of combined parameters for the experiments
     exp_params = np.array(np.meshgrid(  dataset,
@@ -229,13 +233,48 @@ def experiment_on_data(algorithms, data_path, noise_params):
     # Start with the number of processors
     with Pool() as pool:
         # Run experiments in parallel and store results
-        for noisy_result in pool.starmap(experiment_on_noise, exp_params):
+        for noisy_result in  tqdm(pool.istarmap(experiment_on_noise, exp_params),
+                                total=len(exp_params), desc="Experimenting on " + name_data):
 
             # Add the results to the dataframe
             results_df.loc[len(results_df)] = noisy_result
 
-    exec_time = time.time() - start_time
-    print("Finished experimenting on " + name_data + " dataset in " + str(int(exec_time // 60)) + ":" + str(int(exec_time % 60))) 
+    #exec_time = time.time() - start_time
+    #print("Finished experimenting on " + name_data + " dataset in " + str(int(exec_time // 60)) + ":" + str(int(exec_time % 60))) 
+
+    # Reset the index in case addigng the rows caused indexing errors
+    return results_df.reset_index(drop=True) 
+
+
+
+def one_test(algorithms, data_path, noise_params):
+
+    # Results container 
+    results_df = pd.DataFrame(columns=["noise_perc", "noise_magn", "noise_type", "filter","RMSE","MAPE", "R2", "F1", "REC", "PRE", "POR", "DATA", "ALG"])
+
+    # Get the data name
+    name_data = data_path.split('/')[-1].split('.')[0]
+
+    # Load dataset
+    dataset = pd.read_csv(data_path, sep=",", header=None)
+    # Normalize columns for x and y data
+    dataset = preprocessing(dataset, dataset.shape[1] - 1)
+    # Get the data and targets into a container to generate the meshgrid
+    dataset = Dataset(name_data, dataset[0], dataset[1])
+
+
+    # Matrix of combined parameters for the experiments
+    exp_params = np.array(np.meshgrid(  dataset,
+                                        algorithms, 
+                                        RandomForestRegressor(max_depth=9, random_state=0), 
+                                        noise_params[0], # Number of added noisy instances (%)
+                                        noise_params[1], # Percentage of noise added over the instance
+                                        noise_params[2], # Noise type 
+                                        noise_params[3]  # Filter 1 means yes
+                                        )).T.reshape(-1, 7)
+
+    experiment_on_noise(dataset, algorithms[1], RandomForestRegressor(max_depth=9, random_state=0), noise_params[0][0])
+    results_df.head()
 
     # Reset the index in case addigng the rows caused indexing errors
     return results_df.reset_index(drop=True) 
