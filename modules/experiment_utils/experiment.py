@@ -227,8 +227,6 @@ def experiment_on_data(algorithms, data_path, noise_params):
                                         noise_params[3]  # Filter 1 means yes
                                         )).T.reshape(-1, 7)
 
-    # Add baseline tests
-
     
     # Start with the number of processors
     with Pool() as pool:

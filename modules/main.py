@@ -5,8 +5,8 @@ import numpy as np
 
 from multiprocessing import Pool
 
-# sys.path.append('/home/msolis/InstanceDetectNoise/modules/') # path in KABRE 
-sys.path.append('/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/modules/')
+sys.path.append('/home/emunoz/InstanceDetectNoise/modules/') # path in KABRE 
+#sys.path.append('/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/modules/')
 
 
 from experiment_utils.entities import Algorithm
@@ -18,9 +18,13 @@ from InstanceSelection import RegENN01, RegENN03, RegENN03Wei3, RegBAG, DiscENN,
 
 ############################## PATH DATA FRAMES ########################################
 
-# RootOr='/work/msolis/data/'  # PATH KABRE 
-data_path = "/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/Dataset/"
-results_path = "/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/results/"
+#data_path = "/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/Dataset/"
+
+#results_path = "/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/results/"
+
+
+data_path = "/home/emunoz/InstanceDetectNoise/Dataset/"
+results_path = "/home/emunoz/InstanceDetectNoise/results/"
 
 ############################### NOISE PARAMETERS #######################################
 
