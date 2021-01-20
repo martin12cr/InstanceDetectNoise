@@ -28,7 +28,7 @@ from sklearn.neighbors import NearestNeighbors
 """
 # Usually the regression models dont converge so ignore the warnings
 @ignore_warnings(category=ConvergenceWarning)
-def DROP2RE(x, y, k):
+def DROP2RE(x, y, k=9):
     
     # Fit the KNN model for the data, by default uses the Minkowski distance 
     # with p = 2, wich is equal to the euclidean distance
