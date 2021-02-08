@@ -7,21 +7,20 @@ import numpy as np
 from tqdm import trange
 
 from scipy.stats import rankdata
+
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import (NearestNeighbors, KNeighborsRegressor)
+
+from imblearn import under_sampling
+from imblearn.under_sampling import EditedNearestNeighbours
 
 
 # Function to get the euclidean distance
 def distan(x,data):
     res=(x-data)**2
     return(np.sum(res,1)**0.5)
-
-# Function to get the euclidean distance
-def distan2(x,data, imp):
-    res=(x-data)**2
-    res2=res*imp
-    return(np.sum(res2,1)**0.5)
 
 # Function to get position from smallest to bigger at row
 def idxSize(x): 
@@ -39,32 +38,6 @@ def stat(x, response):
     s = np.std(response[x])
     return (m,s)
 
-# Function to get mean and standart deviation.
-def statm(x, response): 
-    m = np.mean(response[x])
-    return m
-
-def knn(data,response, k):
-        
-    # Apply function to get distances of every instance
-    distances=np.apply_along_axis(distan, 1, data, data)
-
-    # Identify the size position of each value at row
-    idxSizeDat=np.apply_along_axis(idxSize, 1, distances)
-
-    # Change the value of the diagonal for the highest number at row in size position data
-    np.fill_diagonal(idxSizeDat, idxSizeDat.shape[0]+50)
-
-    # Get the index of the smallest values at the row in size position data
-    idxF=np.apply_along_axis(idxSmall, 1, idxSizeDat, k)[:,0:k]
-
-    # Get mean and standart deviation
-    statis=np.apply_along_axis(stat, 1, idxF, response)
-    
-    pred=statis
-    
-    return pred
-
 
 ################## RegENN NOT simultaneouos  ######################################
 
@@ -79,34 +52,30 @@ def knn(data,response, k):
 def RegENN01(data, response, k=9, alpha=5):
 
     k = int(k)
-    #print("RegENN01")
     
     # Creating replicated files 
-    response=np.array(response)
-    dataMovil=data
-    responseMovil=response
-    cont=0
+    response = np.array(response)
+    dataMovil = data.copy()
+    responseMovil = response.copy()
+    cont = 0
 
     # Vector to save if the instance is noisy
-    noisef=np.empty([0])
-    indexDel=np.empty([0], dtype=int)
-    size=response.shape[0]
+    noisef = np.empty([0])
+    indexDel = np.empty([0], dtype=int)
+    size = response.shape[0]
+
     # For each instance
-    #for i in trange(size):
     for i in range(size):
     
         # distances
         distances=distan(data[i,:],dataMovil)   
-
-        # Identify the size position of each value at row
-        idxSizeDat=idxSize(distances)
-       
-        # Cambiar i por un valor alto como idxSizeDat.shape[0]+50
-        idxSizeDat[cont]=100
-
-        #  Get the index of the smallest values at the row in size position data
-        idxF=idxSmall(idxSizeDat, k)[0:k]
-
+        
+        # change i value for a higher number
+        distances[cont]=1000000     
+        
+        # get index of lower distances
+        idxF=np.argpartition(distances, k)[0:k]
+        
         # Get mean and standart deviation
         statis=stat(idxF, responseMovil)
         
@@ -115,6 +84,7 @@ def RegENN01(data, response, k=9, alpha=5):
         
         # Get noise
         noise=np.absolute(statis[0]-response[i])> (alpha*statis[1])  
+       
         if (noise)==True:
             # Detect noise
             noisef=np.append(noisef,1)
@@ -143,63 +113,60 @@ def RegENN01(data, response, k=9, alpha=5):
 # response= response variable
 # alpha= parameter to find noise
 # k= number of neihgboors
+# algor=auto or brute, brute it is better for larger datasets 
+# n_jobs= The number of parallel jobs to run for neighbors search. None means 1 unless in a joblib.parallel_backend context. 
+#-1 means using all processors. See Glossary for more details. Doesn’t affect fit method.
 
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
-def RegENN03(data, response, k=9, alpha=5):
-
-    print("RegENN03")
+def RegENN03(data, response, k=9, alpha=5, algor='auto', n_jobs=1):
 
     k = int(k)
     
-    # USAR OTRO ALGORITMO PARA PREDICCION DE MEDIA 
-   
-    # Apply function to get distances of every instance
-    distances=np.apply_along_axis(distan, 1, data, data)
+    # get index of neighbors
+    neigh = KNeighborsRegressor(n_neighbors=k+1, algorithm=algor, n_jobs=n_jobs).fit(data, response)
+    ne=neigh.kneighbors(data, return_distance=False)
 
-    # Identify the size position of each value at row
-    idxSizeDat=np.apply_along_axis(idxSize, 1, distances)
 
-    # Change the value of the diagonal for the highest number at row in size position data
-    np.fill_diagonal(idxSizeDat, idxSizeDat.shape[0]+50)
-
-    # Get the index of the smallest values at the row in size position data
-    idxF=np.apply_along_axis(idxSmall, 1, idxSizeDat, k)[:,0:k]
-
-    # Get mean and standart deviation
-    statis=np.apply_along_axis(stat, 1, idxF, response)
-
-    # Get Noise of the neighboors
-    error=np.absolute(statis[:,0]-response)
-    MAE=np.apply_along_axis(stat, 1, idxF, error)
-    # pred=np.apply_along_axis(stat, 1, idxF, statis[:,0]) # PRUEBA3 CON DESV PRED
+    # prediction of response based on neighbors
+    pred=[]
+    for i in range(response.shape[0]):
+        pred.append(np.mean(response[ne[i,1: ]]))
+    
+    pred=np.array(pred) 
+    
+    # Get error prediction
+    error=np.absolute(pred-response)
+    
+    MAE=[]
+    for i in range(error.shape[0]):
+        MAE.append(np.mean(error[ne[i,1: ]]))
+    
+    MAE=np.array(MAE)
     
     # Get noise
-    # noise=np.absolute(statis[:,0]-response)> ((alpha*MAE[:,1])+MAE[:,0]) # PRUEBA2 CON DESV
-    # noise=np.absolute(statis[:,0]-response)> ((alpha*pred[:,1]) # PRUEBA3 CON DESV
-    noise=np.absolute(statis[:,0]-response)> (alpha*MAE[:,0]) 
+    noise=error > alpha*MAE
     noisef=[1.0 if  i == True else 0 for i in noise]
     noisef=np.array(noisef)
-    
-    # Get error
-    # error=np.absolute(statis[:,0]-response)
+
     
     return noisef
 
 ################## WEIGHT KNN at rows and features to get MAE.... ######################################
-
 
 ### INPUT
 # data=data without response variable
 # response= response variable
 # alpha= parameter to find noise
 # k= number of neihgboors
+# algor=auto or brute, brute it is better for larger datasets 
+# n_jobs= The number of parallel jobs to run for neighbors search. None means 1 unless in a joblib.parallel_backend context. 
+#-1 means using all processors. See Glossary for more details. Doesn’t affect fit method.
+
 
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
-def RegENN03Wei3(data, response, k=9, alpha=0.5):
-
-    print("RegENN03Wei3")
+def RegENN03Wei3(data, response, k=9, alpha=0.5, algor='auto', n_jobs=1):
     
     k = int(k)
     
@@ -207,57 +174,49 @@ def RegENN03Wei3(data, response, k=9, alpha=0.5):
     rf = RandomForestRegressor(n_estimators=100)
     rf.fit(data, response)
     imp=rf.feature_importances_
-
+    imp=imp*data
+    imp=imp*data.shape[0]
     
-    # USAR OTRO ALGORITMO PARA PREDICCION DE MEDIA 
-   
-    # Apply function to get distances of every instance
-    distances=np.apply_along_axis(distan, 1, data, data)
-    distances2=np.apply_along_axis(distan2, 1, data, data, imp)
-
-    # Identify the size position of each value at row
-    idxSizeDat=np.apply_along_axis(idxSize, 1, distances)
-    idxSizeDat2=np.apply_along_axis(idxSize, 1, distances2)
-
-    # Change the value of the diagonal for the highest number at row in size position data
-    np.fill_diagonal(idxSizeDat, idxSizeDat.shape[0]+50)
-    np.fill_diagonal(idxSizeDat2, idxSizeDat2.shape[0]+50)
-
-    # Get the index of the smallest values at the row in size position data
-    idxF=np.apply_along_axis(idxSmall, 1, idxSizeDat, k)[:,0:k]
-    idxF2=np.apply_along_axis(idxSmall, 1, idxSizeDat2, k)[:,0:k]
-
-    # Get mean and standart deviation
-    statis=np.apply_along_axis(stat, 1, idxF, response)
+    
+    # Apply function to get distances and index neighboors of every instance
+    neigh = KNeighborsRegressor(n_neighbors=k+1, algorithm=algor, n_jobs=n_jobs).fit(data, response)
+    idxF=neigh.kneighbors(data, return_distance=False)
+    
+    
+    # prediction of response based on neighbors
+    pred=[]
+    for i in range(response.shape[0]):
+        pred.append(np.mean(response[idxF[i,1: ]]))
+    
+    pred=np.array(pred)
+    
+    
+    #Apply function to get distances WEIGHTED and index neighboors of every instance
+    dataTem=imp*data
+    neigh = KNeighborsRegressor(n_neighbors=k+1, algorithm=algor, n_jobs=n_jobs).fit(dataTem, response)
+    distances2,idxF2=neigh.kneighbors(dataTem, return_distance=True)
+    distances2=distances2[:,1:]
+    idxF2=idxF2[:,1:]
 
     # Get error for each row
-    error=np.absolute(statis[:,0]-response)
-    #MAE=np.apply_along_axis(stat, 1, idxF2, error)
-    #MAE=MAE[:,0]
-    
+    error=np.absolute(pred-response)
+
     # Compute MAE weighted
     MAE=[]
-    #for v in trange(distances2.shape[0]):
+    distances2[distances2==0]=0.001
     for v in range(distances2.shape[0]):
-        dist=distances2[v,idxF2[v,:]]
-        dist[dist==0]=0.001
+        dist=distances2[v,:]
         dato=np.sum(((1/dist)/np.sum(1/dist))*error[idxF2[v,:]])
         MAE.append(dato)
     MAE=np.array(MAE)
     
     
-    # Get noise
-    # noise=np.absolute(statis[:,0]-response)> ((alpha*MAE[:,1])+MAE[:,0]) # PRUEBA2 CON DESV
-    # noise=np.absolute(statis[:,0]-response)> ((alpha*pred[:,1]) # PRUEBA3 CON DESV
-    noise=np.absolute(statis[:,0]-response)> (alpha*MAE) 
+    noise= error > (alpha*MAE) 
     noisef=[1.0 if  i == True else 0 for i in noise]
     noisef=np.array(noisef)
-    
-    # Get error
-    # error=np.absolute(statis[:,0]-response)
+
     
     return noisef
-
 
 
 
@@ -352,108 +311,53 @@ def RegBAG(data, response, k=9, alpha=5, numBag=100, samSize=1):
     return (noiseF2)
 
 
-# # ENN FOR CLASSIFICATION (este solo se ocupa para  DiscENN)
 
-##################  ENN  CLASSIFICATION ######################################
+##################### DiscENN_SIN OPTIMIZADOR ############################
 
-### INPUT
 # data=data without response variable
 # response= response variable
-# alpha= parameter to find noise
+# strat= method for discretization , we will use uniform
+# bins= number of groups to discretize 
 # k= number of neihgboors
 
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
-def ENN(data, response, k=9):
-
-    k = int(k)
-    
-    # Creating replicated files 
-    response=np.array(response)
-    dataMovil=data
-    responseMovil=response
-    cont=0
-
-    # Function to get indexes of smallest values. 
-    def idxSmall(x, k): 
-        idx = np.argpartition(x,k+1)
-        return (idx)
-
-    # Function to get prediction majority vote
-    def predic(x, response): 
-        neigh=response[x]
-        frec=np.unique(neigh, return_counts=True)    
-        pre=frec[0][np.argmax(frec[1])]
-        return(pre)
-
-    # Vector to save if the instance is noisy
-    noisef=np.empty([0])
-    indexDel=np.empty([0], dtype=int)
-    size=response.shape[0]
-    # For each instance
-    #for i in trange(size):
-    for i in range(size):
-    
-        # distances
-        distances=distan(data[i,:],dataMovil)   
-
-        # Identify the size position of each value at row
-        idxSizeDat=idxSize(distances)
-       
-        # Cambiar i por un valor alto como idxSizeDat.shape[0]+50
-        idxSizeDat[cont]=100
-
-        #  Get the index of the smallest values at the row in size position data
-        idxF=idxSmall(idxSizeDat, k)[0:k]
-
-        # Get mean and standart deviation
-        pre=predic(idxF, responseMovil)
-        
-        # Count of index for data with deleted instances
-        cont=cont+1 
-        
-        # Get noise
-        #noise=response[i]!=pre 
-        if (int(response[i])!=int(pre)):
-            # Detect noise
-            noisef=np.append(noisef,1)
-            
-            # Detect index noise
-            indexDel=np.append(indexDel,i)
-            
-            # Delete instances noisy
-            dataMovil = np.delete(data, indexDel, axis=0)
-            responseMovil=np.delete(response,indexDel)
-            
-            # rest to cont
-            cont=cont-1
-            
-        else:
-            noisef=np.append(noisef,0)
-           
-    return (noisef)
-
-
-
-##################### DiscENN_SIN OPTIMIZADOR ############################
 
 
 def DiscENN(data, response, k=9, kbins_strat='uniform', bins=5): 
 
     k = int(k)
     bins = int(bins)
-    # Transform response to apply KBins
+    
+    # Apply ENN, get indexes of selected samples (No noise samples)
     responseTem=np.array(response).reshape(-1, 1)
 
     # Apply KBins
     kbins = KBinsDiscretizer(n_bins=bins, encode='ordinal', strategy=kbins_strat)
     response_trans = kbins.fit_transform(responseTem)
 
-    # Apply ENN
-    #ENN = EditedNearestNeighbours(n_neighbors=9, sample_indices=True)
-    noisef = ENN(data=data, response=response_trans)
+    # Apply ENN for categorical response
+    ENN = EditedNearestNeighbours(n_neighbors=k,kind_sel='mode', return_indices=True).fit(data,  response_trans)
+    selec=ENN.sample(data,  response_trans)[2]
+
+    # get array of all indexes
+
+    todos=np.arange(response.shape[0])
+
+    # get which were not selected 
+    NoSelec=np.setdiff1d(todos, selec, assume_unique=False)
+
+    # add code to selected and not selected 
+    unos=np.repeat(0, selec.shape)
+    ceros=np.repeat(1, NoSelec.shape)
+    noise=np.hstack((unos,ceros))
+    indices=np.hstack((selec,NoSelec))
+    unidas=np.column_stack((indices,noise))
+
+    # get final noise vector 
+    noise = unidas[np.argsort(unidas[:, 0])][:,1]
     
-    return(noisef)
+    return noise
 
 
 ################## DISKR..... ######################################
@@ -464,10 +368,14 @@ def DiscENN(data, response, k=9, kbins_strat='uniform', bins=5):
 # response= response variable
 # alpha= parameter to find noise
 # k= number of neihgboors
+# algor=auto or brute, brute it is better for larger datasets 
+# n_jobs= The number of parallel jobs to run for neighbors search. None means 1 unless in a joblib.parallel_backend context. 
+#-1 means using all processors. See Glossary for more details. Doesn’t affect fit method.
+
 
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
-def DISKR(data, response, k=9, alpha=0.05):
+def DISKR(data, response, k=9, alpha=0.3, algor='brute', n_jobs=1):
 
     k = int(k)
     
@@ -475,9 +383,20 @@ def DISKR(data, response, k=9, alpha=0.05):
     response = np.array(response)
     dataMovil = data.copy()
     responseMovil = response.copy()
+    cont=0
     
-    # Apply knn to predict response
-    pred=knn(data=data, response=response, k=9)     
+    # get index of neighbors
+    neigh = KNeighborsRegressor(n_neighbors=k+1, algorithm=algor, n_jobs=n_jobs).fit(data, response)
+    ne=neigh.kneighbors(data, return_distance=False)
+
+
+    # prediction of response based on neighbors
+    pred=[]
+    for i in range(response.shape[0]):
+        pred.append(np.mean(response[ne[i,1: ]]))
+    
+    pred=np.array(pred) 
+         
     
     # Get noise
     #PD=np.absolute(statis[:,0]-response)
@@ -499,55 +418,90 @@ def DISKR(data, response, k=9, alpha=0.05):
     responseMovil=DATSORT[:,-2]
     dataMovil= DATSORT[:,0:-2 ]
         
+   
+    # Apply function to get distances of every instance  
+    distances=pdist(dataMovil, 'euclidean')
+    distances=squareform(distances)
     
-    # Apply function to get distances of every instance
-    distances=np.apply_along_axis(distan, 1, dataMovil, dataMovil)
-
-    # Identify the size position of each value at row
-    idxSizeDat=np.apply_along_axis(idxSize, 1, distances)
-
-    # Change the value of the diagonal for the highest number at row in size position data
-    np.fill_diagonal(idxSizeDat, idxSizeDat.shape[0]+50)
-
-    # Get the index of the smallest values at the row in size position data
-    idxF=np.apply_along_axis(idxSmall, 1, idxSizeDat, k)[:,0:k]
+    neigh = NearestNeighbors(n_neighbors=int(dataMovil.shape[0]/2), metric='precomputed')
+    neigh.fit(distances)
+    distances, idxF=neigh.kneighbors(distances, return_distance=True)
+    
+    distances=distances[:,1:]
+    idxF=idxF[:,1:]
     
     
+    # prediction of response based on neighbors
+    pred=[]
+    for i in range(responseMovil.shape[0]):
+        pred.append(np.mean(responseMovil[idxF[i,1:k+1]]))
+    
+    pred=np.array(pred) 
+    preRbf=pred.copy()
+   
     # list to save noise vector 
     noisef=[]
     
-    #for m in trange(dataMovil.shape[0]):
+    # neighboors and distances beetween the kth smallest and substitutes
+    distSmall=distances[:,0:k]
+    disSust=distances[:, k:]
+
+    idxFSmall=idxF[:,0:k]
+    idxFsust=idxF[:,k:]
+
+
+    # maximum distance
+    maxDis=np.max(distances)+1
+    
     for m in range(dataMovil.shape[0]):
-        # compute Rbf
-        indd=np.where(idxF[:,:] == m)[0]
+    #for m in range(24):
+        
+        #influential points index of each instance
+        indd, indd2=np.where(idxFSmall == m)
+    
+        # minimum Index column substitutes
+        indexMin=np.argmin(disSust[indd,:],1) 
+
+        # substitutes indexes 
+        susF=idxFsust[indd,indexMin]
+        
+
         if indd.shape[0]!=0:
-            preRbf=np.apply_along_axis(statm, 1, idxF[indd,:], responseMovil)
-            Rbf= np.sum(preRbf-responseMovil[indd])**2
-        
-            # compute Raf
-            idxSizeDat2=idxSizeDat.copy()
-            idxSizeDat2[indd,m]=idxSizeDat.shape[0]+51
-            idxF2=np.apply_along_axis(idxSmall, 1, idxSizeDat2[indd,:], k)[:,0:k]
-            preRaf=np.apply_along_axis(statm, 1, idxF2, responseMovil)
-            Raf= np.sum(preRaf-responseMovil[indd])**2
-        
+     
+            Rbf= np.sum((preRbf[indd]-responseMovil[indd])**2)
+                
+            preRaf=((preRbf[indd]*k)+ responseMovil[susF] -responseMovil[m])/k
+            Raf=np.sum((preRaf-responseMovil[indd])**2)
+   
+            print(Rbf, Raf , m)
+      
         else:
             Rbf=0
-            Raf=0
+            Raf=1
             
-
+        
         # Condition to determine if the instance is deleted
         
         if (Raf-Rbf) <= (alpha*Raf):
             noisef.append(1)
             if indd.shape[0]!=0:
                 # Rbf for the next
-                idxF[indd,:]=idxF2
-                idxSizeDat[indd,:]=idxSizeDat2[indd,:]
+                
+                # Change in substitutes distances
+
+                fil, col =np.where(idxFsust == m)
+                disSust[fil,col]=maxDis
+
+                # Change in substitutes idxFSmall 
+                idxFSmall[indd,indd2]=susF
+                
+                
+                preRbf[indd]=preRaf
             
         else:
             noisef.append(0)
     
+       
     # vector of ones equal to the number of outliers instances
     out=np.ones(noiseIndexOut.shape[0])
     
@@ -560,5 +514,5 @@ def DISKR(data, response, k=9, alpha=0.05):
     union=pd.DataFrame(union)
     unionF=union.sort_values(by=union.shape[1]-1, ascending=True)
     
-    return np.array(unionF[0]) 
+    return np.array(unionF[0])  
 

@@ -181,7 +181,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     correlation_matrix = np.corrcoef(YAgg, predAgg)
     correlation_xy = correlation_matrix[0, 1]
     R2 = correlation_xy ** 2
-    POR = np.sum(NUMAGG) / dataset.x.shape[0]
+    POR = 1 - (X_train.shape[0] / dataset.x.shape[0])
     if filtr == 1:
         output = np.array([RMSE, MAPE, R2, POR, np.mean(F1AGG), np.mean(RECAGG), np.mean(PREAGG)])
     else:

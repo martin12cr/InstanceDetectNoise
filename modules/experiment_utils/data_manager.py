@@ -25,10 +25,10 @@ def min_max_norm(x):
     target_idx:     Index of the response 
 
 """
-def preprocessing(df, target_idx): 
+def preprocessing(df, target_idx, rs=30): 
     
     # Sort the df
-    df = df.sample(frac=1)  
+    df = df.sample(frac=1, random_state=rs)  
     
     # Exclude the target from train_data
     data = df.loc[:, df.columns != target_idx]
