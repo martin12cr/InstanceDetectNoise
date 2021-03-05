@@ -209,6 +209,7 @@ def experiment_on_data(algorithms, data_path, noise_params):
 
     # Load dataset
     dataset = pd.read_csv(data_path, sep=",", header=None)
+    #print(dataset.info())
     # Normalize columns for x and y data
     dataset = preprocessing(dataset, dataset.shape[1] - 1)
     # Get the data and targets into a container to generate the meshgrid

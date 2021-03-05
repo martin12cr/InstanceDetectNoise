@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import trange
 
 from scipy.stats import rankdata
+from scipy.spatial.distance import pdist, squareform
 
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import KBinsDiscretizer
@@ -326,6 +327,8 @@ def RegBAG(data, response, k=9, alpha=5, numBag=100, samSize=1):
 
 def DiscENN(data, response, k=9, kbins_strat='uniform', bins=5): 
 
+    #print("DiscENN")
+
     k = int(k)
     bins = int(bins)
     
@@ -376,6 +379,9 @@ def DiscENN(data, response, k=9, kbins_strat='uniform', bins=5):
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
 def DISKR(data, response, k=9, alpha=0.3, algor='brute', n_jobs=1):
+
+
+    #print("DISKR")
 
     k = int(k)
     
@@ -473,7 +479,7 @@ def DISKR(data, response, k=9, alpha=0.3, algor='brute', n_jobs=1):
             preRaf=((preRbf[indd]*k)+ responseMovil[susF] -responseMovil[m])/k
             Raf=np.sum((preRaf-responseMovil[indd])**2)
    
-            print(Rbf, Raf , m)
+            #print(Rbf, Raf , m)
       
         else:
             Rbf=0
