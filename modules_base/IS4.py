@@ -3,7 +3,39 @@
 
 # # RegENN01
 
-# In[ ]:
+# In[13]:
+
+
+# dataFrame=dataframe 
+# pos=column position of response in dataframe
+
+def file_preparation(dataFrame,pos): 
+    
+    # Sort dataFrame
+    dataFrame=dataFrame.sample(frac=1)  
+    
+    # Normalize function
+    def norm(x):
+        new=(x-np.min(x))/(np.max(x)-np.min(x))
+        return(new)
+    
+    # Exclude the response from train_data
+    number=pos  
+    data=dataFrame.loc[:, dataFrame.columns != number]
+    response=dataFrame.loc[:,number]
+    
+    # applying normalize function to every column 
+    data=np.apply_along_axis(norm, 0, data.values)
+    response=np.array(response)
+    return(data,response)
+
+
+#data1,response1=file_preparation(train_data5,train_data5.shape[1]-1)
+
+data1,response1=file_preparation(train_data2,train_data2.shape[1]-1)
+
+
+# In[1]:
 
 
 ################## RegENN NOT simultaneouos  ######################################
@@ -96,7 +128,7 @@ def RegENN01(data, response,alfa=5, k=9):
 
 # # RegENN03
 
-# In[ ]:
+# In[8]:
 
 
 ################## RegENN03 ALFA* MAE VECINOS..... ######################################
@@ -162,7 +194,7 @@ def RegENN03(data, response, k=9, alfa=5, algor='auto', n_jobs=-1):
 
 # # RegENN03Wei3 WEIGHT KNN at rows and features to get MAE
 
-# In[ ]:
+# In[10]:
 
 
 ################## WEIGHT KNN at rows and features to get MAE.... ######################################
@@ -245,7 +277,7 @@ def RegENN03Wei3(data, response, k=9, alfa=5, algor='auto', n_jobs=-1):
 
 # # DiscENN_SIN OPTIMIZADOR 
 
-# In[ ]:
+# In[22]:
 
 
 ### INPUT
@@ -261,7 +293,7 @@ def RegENN03Wei3(data, response, k=9, alfa=5, algor='auto', n_jobs=-1):
 
 
 
-
+from sklearn.preprocessing import KBinsDiscretizer
 from imblearn import under_sampling
 from imblearn.under_sampling import EditedNearestNeighbours
 
@@ -300,11 +332,12 @@ def DiscENN(data, response, strat, bins,  k=9):
 
 # # DISKR
 
-# In[ ]:
+# In[38]:
 
 
 ################## DISKR..... ######################################
 
+#########ERICK PROBARLO CON LOS SIGUIENTES VALORES DEL ALFA 0.01, 0.05, 0.1, 0.20
 
 ### INPUT
 # data=data without response variable
@@ -319,8 +352,10 @@ def DiscENN(data, response, strat, bins,  k=9):
 ### OUTPUT
 # vector indicating which instances has noisy  in the response variable
 
+from scipy.spatial.distance import pdist
+from scipy.spatial.distance import squareform
 
-def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=n_jobs=-1):  
+def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=-1):  
     
     response=np.array(response)
     dataMovil=data.copy()
@@ -392,7 +427,7 @@ def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=n_jobs=-1):
     distances=distances[:,1:]
     idxF=idxF[:,1:]
     
-    
+
     # prediction of response based on neighbors
     pred=[]
     for i in range(responseMovil.shape[0]):
@@ -414,7 +449,7 @@ def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=n_jobs=-1):
 
     # maximum distance
     maxDis=np.max(distances)+1
-    
+   
     for m in range(dataMovil.shape[0]):
     #for m in range(24):
         
@@ -435,7 +470,6 @@ def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=n_jobs=-1):
             preRaf=((preRbf[indd]*k)+ responseMovil[susF] -responseMovil[m])/k
             Raf=np.sum((preRaf-responseMovil[indd])**2)
    
-            print(Rbf, Raf , m)
       
         else:
             Rbf=0
@@ -462,8 +496,7 @@ def DISKR(data, response, alfa=0.3, k=9, algor='brute', n_jobs=n_jobs=-1):
             
         else:
             noisef.append(0)
-    
-       
+        
     # vector of ones equal to the number of outliers instances
     out=np.ones(noiseIndexOut.shape[0])
     
