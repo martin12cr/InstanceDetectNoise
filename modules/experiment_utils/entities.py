@@ -17,4 +17,6 @@ class Algorithm:
     # Evaluate the algorithm using the kwargs
     def evaluate(self, x, y):
 
+        
+
         return self.algorithm(x, y, **self.kwargs)

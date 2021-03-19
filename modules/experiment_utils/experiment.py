@@ -119,7 +119,7 @@ def add_noise(target, perc, method, mag=0.3, rs=30):
     return:
     A vector with RMSE and MAPE of target prediction, and F-SCORE, PRECISION AND RECALL OF noisy detection, and percentage of cases deleted
 """
-def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='persize', filtr=1, split=10,  rs=30): 
+def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='persize', filtr=1, split=5,  rs=30): 
 
     # KFold Cross Validation approach
     kf = KFold(n_splits=split, shuffle=True, random_state=rs)
@@ -145,8 +145,11 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
         
         
         if(filtr == 1):
+
+            #print(Y_train.shape, Y_train.ravel().shape)
+            
             # Apply instance selection algorithm
-            idNoisePred = is_algorithm.evaluate(X_train,Y_train)
+            idNoisePred = is_algorithm.evaluate(X_train,Y_train.ravel())
     
             # Delete Noise according to instance selection algorithmn
             X_train = X_train[idNoisePred != 1]

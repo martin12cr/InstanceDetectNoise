@@ -1,9 +1,18 @@
-import sys, os
+import warnings, sys, os
 
 import pandas as pd
 import numpy as np
 
 from multiprocessing import Pool
+
+
+# Supress sklearn warnings
+def warn(*args, **kwargs):
+    pass
+warnings.warn = warn
+
+
+
 
 base_path = "/home/erick/google_drive/PARMA/InstanceNoiseDetection/GitRepo/"
 
@@ -19,9 +28,9 @@ from InstanceSelection import RegENN01, RegENN03, RegENN03Wei3, RegBAG, DiscENN,
 
 ############################## PATH DATA FRAMES ########################################
 
-data_path = base_path + "Dataset/slow_samples/"
+data_path = base_path + "Dataset/diskr/"
 
-results_path = base_path + "results_dis/"
+results_path = base_path + "results_test/"
 
 
 #data_path = "/home/emunoz/InstanceDetectNoise/Dataset/Fast/"
@@ -66,7 +75,7 @@ num_bins = np.array([2, 3, 4, 5], dtype=np.int)
 algorithms = {#"RegENN03Wei3": RegENN03Wei3,    
             #"RegENN01": RegENN01,
             #"RegENN03": RegENN03,              
-            "DiscENN": DiscENN,                    # Tira varios errores
+            #"DiscENN": DiscENN,                    # Tira varios errores
             #"RegBAG": RegBAG,                     # No correr
             "DISKR": DISKR                         # Tira varios errores
         }
@@ -95,7 +104,6 @@ alg_params = pack_algorithms(algorithms,
 # Detect available files
 files = os.listdir(data_path)
 files.sort()
-files = files[1:]
 
 # Do not process finished files
 for r in os.listdir(results_path):
@@ -117,7 +125,8 @@ files.remove("stock.dat")
 files.remove("treasury.dat")
 files.remove("yacht.dat")"""
 
-files.remove("ailerons.dat")
+#files.remove("ailerons.dat")
+
 
 print(results_path)
 print(os.listdir(results_path))
