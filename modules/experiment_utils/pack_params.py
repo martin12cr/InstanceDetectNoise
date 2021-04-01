@@ -84,7 +84,7 @@ def pack_RegBAG(alg_name, alg, ks, alphas, num_bags, sample_size):
     different parameters
 
     alg_name:       Algorithm name
-    alg:            Algorithm function in this case only RegBAG function
+    alg:            Algorithm function in this case only DiscENN function
     ks:             Numpy array of k values
     strat:          Numpy array with posible strategies for the KBins Discretizer
     bins:           Numpy array with posible bin sizes for the KBins Discretizer
@@ -118,6 +118,34 @@ def pack_DiscENN(alg_name, alg, ks, strat, bins):
     return packed_discenn
 
 
+"""
+    Generates a list of Algorithm classes that executes DROP2RE algorithm with 
+    different parameters
+
+    alg_name:       Algorithm name
+    alg:            Algorithm function in this case only DROP2RE function
+    ks:             Numpy array of k values
+
+    returns     List of Algorithms with different parameters
+
+"""
+def pack_DROP2RE(alg_name, alg, ks):
+
+    # Create the package
+    packed_drop2re = []
+
+    # Iterate over all the parameter combinations
+    for k_value in ks:
+
+        # Build the algoritm name using the parameters
+        name = "{}_k{}".format( alg_name, 
+                                str(k_value))
+
+        # Build the algorithm
+        packed_drop2re.append(Algorithm(name, alg, 
+                                        k=k_value))
+
+    return packed_drop2re
 
 
 def pack_algorithms(algorithms, k, regs_alpha, diskr_alpha, num_bags, sample_size, strategy, num_bins):
@@ -144,6 +172,10 @@ def pack_algorithms(algorithms, k, regs_alpha, diskr_alpha, num_bags, sample_siz
         # Build the DISKR algorithm
         elif("DISKR" in alg_name):
             packed_algorithms += pack_kalpha(alg_name, alg, k, diskr_alpha)
+
+        # Build the DROP2RE algorithm
+        elif("DROP2RE" in alg_name):
+            packed_algorithms += pack_DROP2RE(alg_name, alg, k)
 
         # Catch errors in names
         else:

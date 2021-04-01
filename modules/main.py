@@ -22,15 +22,24 @@ sys.path.append(base_path + "modules/")
 from experiment_utils.entities import Algorithm
 from experiment_utils.pack_params import pack_algorithms
 from experiment_utils.experiment import experiment_on_data, one_test
-from InstanceSelection import RegENN01, RegENN03, RegENN03Wei3, RegBAG, DiscENN, DISKR
+
+from InstanceSelection.DISKR import DISKR
+from InstanceSelection.RegBag import RegBag
+from InstanceSelection.DROP2RE import DROP2RE
+from InstanceSelection.DiscENN import DiscENN
+from InstanceSelection.RegENN01 import RegENN01
+from InstanceSelection.RegENN03 import RegENN03
+from InstanceSelection.RegENN03_weighted import RegENN03_weighted
+
+
 
 # # PATH AND PARAMETERS 
 
 ############################## PATH DATA FRAMES ########################################
 
-data_path = base_path + "Dataset/diskr/"
+data_path = base_path + "Dataset/Fast/"
 
-results_path = base_path + "results_test/"
+results_path = base_path + "results/results_drop2re/"
 
 
 #data_path = "/home/emunoz/InstanceDetectNoise/Dataset/Fast/"
@@ -77,7 +86,8 @@ algorithms = {#"RegENN03Wei3": RegENN03Wei3,
             #"RegENN03": RegENN03,              
             #"DiscENN": DiscENN,                    # Tira varios errores
             #"RegBAG": RegBAG,                     # No correr
-            "DISKR": DISKR                         # Tira varios errores
+            #"DISKR": DISKR,                         # Tira varios errores
+            "DROP2RE": DROP2RE
         }
 
 alg_params = pack_algorithms(algorithms, 
@@ -127,17 +137,17 @@ files.remove("yacht.dat")"""
 
 #files.remove("ailerons.dat")
 
-
-print(results_path)
-print(os.listdir(results_path))
-print(files)
+print("Reding data from ", data_path)
+print("Storing results on ", results_path)
+print("Available files: ", files)
 
 l = len(files)
-# Linear execution
+# Define the execution type
+isParallel = True
 for dataset in files:
 
     # Run experiments on the dataset seq
-    data_results_df = experiment_on_data(alg_params, data_path + dataset , noise_params)
+    data_results_df = experiment_on_data(alg_params, data_path + dataset , noise_params, isParallel)
     #one_test(alg_params, data_path + dataset , noise_params)
 
     # Write to CSV

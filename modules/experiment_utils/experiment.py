@@ -141,9 +141,8 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     
         # Add noise to target
         Y_train, idNoise = add_noise(target=Y_train, perc=noise_perc, method=noise_type, mag=noise_magn)    
-        
-        
-        
+
+
         if(filtr == 1):
 
             #print(Y_train.shape, Y_train.ravel().shape)
@@ -202,7 +201,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     noise_params:   
     
 """
-def experiment_on_data(algorithms, data_path, noise_params):
+def experiment_on_data(algorithms, data_path, noise_params, isParallel=True):
 
     # Results container 
     results_df = pd.DataFrame(columns=["noise_perc", "noise_magn", "noise_type", "filter","RMSE","MAPE", "R2", "F1", "REC", "PRE", "POR", "DATA", "ALG"])
@@ -231,15 +230,27 @@ def experiment_on_data(algorithms, data_path, noise_params):
                                         noise_params[3]  # Filter 1 means yes
                                         )).T.reshape(-1, 7)
 
-    
-    # Start with the number of processors
-    with Pool() as pool:
-        # Run experiments in parallel and store results
-        for noisy_result in  tqdm(pool.istarmap(experiment_on_noise, exp_params),
-                                total=len(exp_params), desc="Experimenting on " + name_data):
+    # If we wan multithreaded execution
+    if(isParallel):
+        # Start with the number of processors
+        with Pool() as pool:
+            # Run experiments in parallel and store results
+            for noisy_result in  tqdm(pool.istarmap(experiment_on_noise, exp_params),
+                                    total=len(exp_params), desc="Experimenting on " + name_data):
 
-            # Add the results to the dataframe
-            results_df.loc[len(results_df)] = noisy_result
+                # Add the results to the dataframe
+                results_df.loc[len(results_df)] = noisy_result
+
+    # If we want secuential execution
+    else:
+        with tqdm(total=len(exp_params), desc="Experimenting on " + name_data) as pbar:
+            for i in range(len(exp_params)):
+                
+                p = exp_params[i]
+                # Add the results to the dataframe
+                results_df.loc[len(results_df)] = experiment_on_noise(p[0], p[1], p[2], p[3], p[4], p[5], p[6])
+
+                pbar.update(1)
 
     #exec_time = time.time() - start_time
     #print("Finished experimenting on " + name_data + " dataset in " + str(int(exec_time // 60)) + ":" + str(int(exec_time % 60))) 
