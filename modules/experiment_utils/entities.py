@@ -5,6 +5,11 @@ class Dataset:
         self.x = x
         self.y = y
 
+class FoldIndex:
+    def __init__(self, train, test):
+        self.train = train
+        self.test = test
+
 class Algorithm:
     def __init__(self, name, algorithm, **kwargs):
         # Store the function name

@@ -2,12 +2,13 @@ import sys, time
 
 import numpy as np
 import pandas as pd
+from sklearn.utils import Parallel
 
 from tqdm import tqdm
 from .istarmap import *
 from multiprocessing import Pool
 
-from .entities import Dataset
+from .entities import Dataset, FoldIndex
 from .data_manager import preprocessing
 
 from sklearn.model_selection import KFold
@@ -103,6 +104,44 @@ def add_noise(target, perc, method, mag=0.3, rs=30):
         return ([target, np.zeros(target.shape[0])])
 
 
+
+def analyze_fold(dataset, fold_index, is_algorithm, aux_algoritm, noise_perc, noise_magn, noise_type, filtr):
+
+    # Split train-test
+    X_train, X_test = dataset.x[fold_index.train], dataset.x[fold_index.test]
+    Y_train, Y_test = dataset.y[fold_index.train], dataset.y[fold_index.test]
+
+    # Add noise to target
+    Y_train, idNoise = add_noise(target=Y_train, perc=noise_perc, method=noise_type, mag=noise_magn)    
+
+
+    if(filtr == 1):
+
+        #print(Y_train.shape, Y_train.ravel().shape)
+        
+        # Apply instance selection algorithm
+        idNoisePred = is_algorithm.evaluate(X_train,Y_train.ravel())
+
+        # Delete Noise according to instance selection algorithmn
+        X_train = X_train[idNoisePred != 1]
+        Y_train = Y_train[idNoisePred != 1]
+
+        # Evaluation Noise detection
+        PRE = precision_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
+        REC = recall_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
+        F1 = f1_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
+        NUM = np.sum(idNoisePred)
+    
+    # Train the auxiliar algorithm
+    aux_algoritm = aux_algoritm.fit(X_train, Y_train)
+
+    # Generate prediction
+    pred = aux_algoritm.predict(X_test)
+
+    return [PRE, REC, NUM, F1, pred, Y_test]
+
+
+
 """
     Function to excecute a specific noise combination on a given dataset
 
@@ -119,7 +158,7 @@ def add_noise(target, perc, method, mag=0.3, rs=30):
     return:
     A vector with RMSE and MAPE of target prediction, and F-SCORE, PRECISION AND RECALL OF noisy detection, and percentage of cases deleted
 """
-def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='persize', filtr=1, split=5,  rs=30): 
+def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_magn=0.3, noise_type='persize', filtr=1, split=5,  rs=30, isParallel=False): 
 
     # KFold Cross Validation approach
     kf = KFold(n_splits=split, shuffle=True, random_state=rs)
@@ -132,49 +171,51 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     predAgg= []
     YAgg= []
 
-    # Iterate over each train-test split
-    for train_index, test_index in kf.split(dataset.x):
-    
-        # Split train-test
-        X_train, X_test = dataset.x[train_index], dataset.x[test_index]
-        Y_train, Y_test = dataset.y[train_index], dataset.y[test_index]
-    
-        # Add noise to target
-        Y_train, idNoise = add_noise(target=Y_train, perc=noise_perc, method=noise_type, mag=noise_magn)    
+    folds = kf.split(dataset.x)
 
+    # Check if we want to run on parallel mode
+    if(isParallel):
 
-        if(filtr == 1):
-
-            #print(Y_train.shape, Y_train.ravel().shape)
+        # Extract the folds for parallel processing 
+        fold_indexes = []
+        for train_index, test_index in folds:
             
-            # Apply instance selection algorithm
-            idNoisePred = is_algorithm.evaluate(X_train,Y_train.ravel())
-    
-            # Delete Noise according to instance selection algorithmn
-            X_train = X_train[idNoisePred != 1]
-            Y_train = Y_train[idNoisePred != 1]
-    
-            # Evaluation Noise detection
-            PRE = precision_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
-            REC = recall_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
-            F1 = f1_score(idNoise, idNoisePred, pos_label=1, zero_division=0)
-            NUM = np.sum(idNoisePred)
+            fold_indexes.append(FoldIndex(train_index, test_index))
+
+        # Create a custom meshgrid for the parallel fold analysis
+        exp_params = np.array(np.meshgrid(dataset,
+                                        fold_indexes, 
+                                        is_algorithm, 
+                                        aux_algoritm, 
+                                        noise_perc, 
+                                        noise_magn, 
+                                        noise_type, 
+                                        filtr
+                                        )).T.reshape(-1, 8)
+
+        with Pool(split) as pool:
+            results = list(pool.istarmap(analyze_fold, exp_params))
+
+    # For secuential mode
+    else:
+
+        # Iterate over each train-test split
+        for train_index, test_index in folds:
+
             
-            # Save evaluation Noise detection
-            PREAGG = np.append(PREAGG, PRE)
-            RECAGG = np.append(RECAGG, REC)
-            NUMAGG = np.append(NUMAGG, NUM)
-            F1AGG = np.append(F1AGG, F1)
-        
-        # Train the auxiliar algorithm
-        aux_algoritm = aux_algoritm.fit(X_train, Y_train)
-    
-        # Generate prediction
-        pred = aux_algoritm.predict(X_test)
-    
-        # Save real and prediction vectors of the  fold 
-        predAgg = np.concatenate((predAgg, pred), axis=0)
-        YAgg = np.concatenate((YAgg, Y_test), axis=0)
+            # Run the fold analysis 
+            results = analyze_fold(dataset, FoldIndex(train_index, test_index), is_algorithm, aux_algoritm, noise_perc, noise_magn, noise_type, filtr)
+            
+
+            # Store iteration results
+            PREAGG = np.append(PREAGG, results[0])
+            RECAGG = np.append(RECAGG, results[1])
+            NUMAGG = np.append(NUMAGG, results[2])
+            F1AGG = np.append(F1AGG, results[3])
+
+            # Save real and prediction vectors of the  fold 
+            predAgg = np.concatenate((predAgg, results[4]), axis=0)
+            YAgg = np.concatenate((YAgg, results[5]), axis=0)
 
     
     # Evaluation
@@ -183,7 +224,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     correlation_matrix = np.corrcoef(YAgg, predAgg)
     correlation_xy = correlation_matrix[0, 1]
     R2 = correlation_xy ** 2
-    POR = 1 - (X_train.shape[0] / dataset.x.shape[0])
+    POR = 1 - (dataset.x[train_index].shape[0] / dataset.x.shape[0])
     if filtr == 1:
         output = np.array([RMSE, MAPE, R2, POR, np.mean(F1AGG), np.mean(RECAGG), np.mean(PREAGG)])
     else:
@@ -201,7 +242,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     noise_params:   
     
 """
-def experiment_on_data(algorithms, data_path, noise_params, isParallel=True):
+def experiment_on_data(algorithms, data_path, noise_params, isParallel=[False]):
 
     # Results container 
     results_df = pd.DataFrame(columns=["noise_perc", "noise_magn", "noise_type", "filter","RMSE","MAPE", "R2", "F1", "REC", "PRE", "POR", "DATA", "ALG"])
@@ -217,8 +258,9 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=True):
     # Get the data and targets into a container to generate the meshgrid
     dataset = Dataset(name_data, dataset[0], dataset[1])
 
-    # Get time stamps
-    #start_time = time.time()
+    # Correct isParallel in case if needed
+    if(len(isParallel) < 2):
+        isParallel = 2 * isParallel
 
     # Matrix of combined parameters for the experiments
     exp_params = np.array(np.meshgrid(  dataset,
@@ -229,9 +271,9 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=True):
                                         noise_params[2], # Noise type 
                                         noise_params[3]  # Filter 1 means yes
                                         )).T.reshape(-1, 7)
-
+    start = time.time()
     # If we wan multithreaded execution
-    if(isParallel):
+    if(isParallel[0]):
         # Start with the number of processors
         with Pool() as pool:
             # Run experiments in parallel and store results
@@ -243,14 +285,19 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=True):
 
     # If we want secuential execution
     else:
+
+        # Add the parallelization on experiment_on_noise
+
         with tqdm(total=len(exp_params), desc="Experimenting on " + name_data) as pbar:
             for i in range(len(exp_params)):
                 
                 p = exp_params[i]
                 # Add the results to the dataframe
-                results_df.loc[len(results_df)] = experiment_on_noise(p[0], p[1], p[2], p[3], p[4], p[5], p[6])
+                results_df.loc[len(results_df)] = experiment_on_noise(p[0], p[1], p[2], p[3], p[4], p[5], p[6], isParallel=isParallel[1])
 
                 pbar.update(1)
+    
+    print(time.time() - start)
 
     #exec_time = time.time() - start_time
     #print("Finished experimenting on " + name_data + " dataset in " + str(int(exec_time // 60)) + ":" + str(int(exec_time % 60))) 

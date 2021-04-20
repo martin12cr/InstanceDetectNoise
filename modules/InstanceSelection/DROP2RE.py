@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.core.records import array
 
 #from tqdm import tqdm
 
@@ -147,9 +146,6 @@ def DROP2RE(x, y, k=9):
                         # Add it
                         associates[n_idx].append(associate_idx)
         
-        # Update progress bar
-        #pbar.update(1)
-
     # Sumary
     #print("Deleted a total of ", len(forbidden_idxs), " out of ", len(x), " samples.")
 
