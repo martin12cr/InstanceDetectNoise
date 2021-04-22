@@ -1,10 +1,10 @@
 import warnings, sys, os
 
-import pandas as pd
 import numpy as np
 
-from multiprocessing import Pool
+from argparse import ArgumentParser
 
+from pandas.core.indexing import check_bool_indexer
 
 # Supress sklearn warnings
 def warn(*args, **kwargs):
@@ -111,44 +111,53 @@ alg_params = pack_algorithms(algorithms,
 
 ################################# EXPERIMENT EXECUTION #################################
 
-# Detect available files
-files = os.listdir(data_path)
-files.sort()
+if __name__ == "__main__":
+    # Add args support for testing
+    parser = ArgumentParser()
+    parser.add_argument("-pm", "--parallel_mode", 
+                        type=bool, default=True,
+                        help="Path to the source data")
+    args = parser.parse_args()
 
-# Do not process finished files
-for r in os.listdir(results_path):
-    r = r.split('.')[0] + ".dat"
-    if (r in files):
-        files.remove(r.split('.')[0] + ".dat")
+    # Detect available files
+    files = os.listdir(data_path)
+    files.sort()
 
-"""files.remove("dee.dat")
-files.remove("ele-1.dat")
-files.remove("ele-2.dat")
-files.remove("energy.dat")
-files.remove("forestFires.dat")
-files.remove("friedman.dat")
-files.remove("machineCPU.dat")
-files.remove("mortgage.dat")
-files.remove("plastic.dat")
-files.remove("realState.dat")
-files.remove("stock.dat")
-files.remove("treasury.dat")
-files.remove("yacht.dat")"""
+    # Do not process finished files
+    for r in os.listdir(results_path):
+        r = r.split('.')[0] + ".dat"
+        if (r in files):
+            files.remove(r.split('.')[0] + ".dat")
 
-#files.remove("ailerons.dat")
+    """files.remove("dee.dat")
+    files.remove("ele-1.dat")
+    files.remove("ele-2.dat")
+    files.remove("energy.dat")
+    files.remove("forestFires.dat")
+    files.remove("friedman.dat")
+    files.remove("machineCPU.dat")
+    files.remove("mortgage.dat")
+    files.remove("plastic.dat")
+    files.remove("realState.dat")
+    files.remove("stock.dat")
+    files.remove("treasury.dat")
+    files.remove("yacht.dat")"""
 
-print("Reding data from ", data_path)
-print("Storing results on ", results_path)
-print("Available files: ", files)
+    #files.remove("ailerons.dat")
 
-l = len(files)
-# Define the execution type
-isParallel = True
-for dataset in files:
+    files = ["concrete.dat"]
 
-    # Run experiments on the dataset seq
-    data_results_df = experiment_on_data(alg_params, data_path + dataset , noise_params, isParallel)
-    #one_test(alg_params, data_path + dataset , noise_params)
+    print("Reding data from ", data_path)
+    print("Storing results on ", results_path)
+    print("Available files: ", files)
 
-    # Write to CSV
-    data_results_df.to_csv(results_path + dataset.split('.')[0] + ".csv", index=False)
+    l = len(files)
+    # Define the execution type
+    for dataset in files:
+
+        # Run experiments on the dataset seq
+        data_results_df = experiment_on_data(alg_params, data_path + dataset , noise_params, args.parallel_mode)
+        #one_test(alg_params, data_path + dataset , noise_params)
+
+        # Write to CSV
+        data_results_df.to_csv(results_path + dataset.split('.')[0] + ".csv", index=False)

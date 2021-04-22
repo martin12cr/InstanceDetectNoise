@@ -193,8 +193,19 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
                                         filtr
                                         )).T.reshape(-1, 8)
 
+        # Analyze each fold in parallel
         with Pool(split) as pool:
             results = list(pool.istarmap(analyze_fold, exp_params))
+
+        # Append results
+        for fold in results:
+
+            PREAGG = np.append(PREAGG, fold[0])
+            RECAGG = np.append(RECAGG, fold[1])
+            NUMAGG = np.append(NUMAGG, fold[2])
+            F1AGG = np.append(F1AGG, fold[3])
+            predAgg = np.concatenate((predAgg, fold[4]), axis=0)
+            YAgg = np.concatenate((YAgg, fold[5]), axis=0)
 
     # For secuential mode
     else:
@@ -242,7 +253,7 @@ def experiment_on_noise(dataset, is_algorithm, aux_algoritm, noise_perc, noise_m
     noise_params:   
     
 """
-def experiment_on_data(algorithms, data_path, noise_params, isParallel=[False]):
+def experiment_on_data(algorithms, data_path, noise_params, isParallel=False):
 
     # Results container 
     results_df = pd.DataFrame(columns=["noise_perc", "noise_magn", "noise_type", "filter","RMSE","MAPE", "R2", "F1", "REC", "PRE", "POR", "DATA", "ALG"])
@@ -258,10 +269,6 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=[False]):
     # Get the data and targets into a container to generate the meshgrid
     dataset = Dataset(name_data, dataset[0], dataset[1])
 
-    # Correct isParallel in case if needed
-    if(len(isParallel) < 2):
-        isParallel = 2 * isParallel
-
     # Matrix of combined parameters for the experiments
     exp_params = np.array(np.meshgrid(  dataset,
                                         algorithms, 
@@ -273,7 +280,7 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=[False]):
                                         )).T.reshape(-1, 7)
     start = time.time()
     # If we wan multithreaded execution
-    if(isParallel[0]):
+    if(isParallel):
         # Start with the number of processors
         with Pool() as pool:
             # Run experiments in parallel and store results
@@ -292,8 +299,8 @@ def experiment_on_data(algorithms, data_path, noise_params, isParallel=[False]):
             for i in range(len(exp_params)):
                 
                 p = exp_params[i]
-                # Add the results to the dataframe
-                results_df.loc[len(results_df)] = experiment_on_noise(p[0], p[1], p[2], p[3], p[4], p[5], p[6], isParallel=isParallel[1])
+                # Add the results to the dataframe but excecute parallel folds
+                results_df.loc[len(results_df)] = experiment_on_noise(p[0], p[1], p[2], p[3], p[4], p[5], p[6], isParallel=not(isParallel))
 
                 pbar.update(1)
     
